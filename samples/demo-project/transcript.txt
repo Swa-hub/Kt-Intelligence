@@ -1,0 +1,46 @@
+KT Session — "orders-api" handover
+Date: 2026-09-14
+Presenter: Priya S. (outgoing lead)
+Attendees: new team (Dev A, Dev B, PM)
+Duration: 42 minutes (excerpt)
+
+[00:03:12] Priya: Alright, so the orders-api is a small Flask service. It exposes
+four endpoints under /api — list orders, get a single order, create an order,
+and the admin cancel endpoint.
+
+[00:04:50] Priya: One thing I want to flag up front: every endpoint on this
+service requires authentication. We use a Bearer token on every request. The
+auth decorator is applied in routes.py — you'll see @require_auth on all the
+routes. If the token is missing or invalid, we return 401. That's enforced on
+list, get, create, and the admin cancel.
+
+[00:06:05] Dev A: Even the public order lookup?
+
+[00:06:11] Priya: Yes. Internally, the mobile app reads from this service and
+it always has a token. There's no public access.
+
+[00:09:20] Priya: Orders are persisted to Postgres. The schema has a table
+`orders` with id, user_id, status, total_cents, and created_at. Status is one
+of 'pending', 'paid', 'cancelled', 'refunded'. There's no 'shipped' status —
+that lives in the fulfilment service.
+
+[00:12:40] Priya: For rate limiting, we apply 60 requests per minute per
+authenticated user. That's handled by a middleware called RateLimiter in
+middleware.py.
+
+[00:17:03] Priya: Cancel is only for admins. The role check is on the admin
+cancel route — we look up the user's role from the token claims and reject
+anything that isn't 'admin' with 403.
+
+[00:21:15] Dev B: What about retries on the payment side?
+
+[00:21:30] Priya: We retry Stripe charges up to 3 times with exponential
+backoff. That's in payments.py — I think it's in the charge() function.
+Honestly it's been a while since I touched that code so double-check.
+
+[00:28:40] Priya: Deployment is on Fly.io, two regions. Secrets are in
+Fly secrets, not in the repo.
+
+[00:35:00] Priya: One known issue — occasionally we see duplicate order rows
+when the mobile app retries POST /api/orders without an idempotency key. We
+haven't fixed it yet. There's a ticket open, I think ORDR-412.

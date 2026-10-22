@@ -1,0 +1,55 @@
+# One-click deploy to Render: https://render.com/docs/blueprint-spec
+#
+# Push this repo to GitHub, then on Render: New + → Blueprint → point at the
+# repo. You will be prompted for secrets (LLM_API_KEY and the optional ones);
+# Render then builds and launches both services.
+#
+# Notes on the free tier:
+#   - Free web services sleep after ~15 min of inactivity. First request after
+#     idle takes ~30s to wake up. Upgrade to a paid plan to remove this.
+#   - Free services cannot mount persistent disks. SQLite data lives on
+#     ephemeral container storage and is reset on each deploy. Fine for the
+#     demo. For persistence, upgrade this service's plan to `starter` and
+#     uncomment the `disk:` block below.
+
+services:
+  - type: web
+    name: kt-intelligence-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.groq.com/openai/v1/
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: LLM_EMBED_MODEL
+        value: ""
+      - key: EMBEDDINGS_BASE_URL
+        value: ""
+      - key: EMBEDDINGS_API_KEY
+        sync: false
+      - key: BACKEND_PORT
+        value: 8010
+      - key: CORS_ORIGINS
+        sync: false   # paste the frontend URL after first deploy
+      - key: PUBLIC_BASE_URL
+        sync: false   # paste the frontend URL for Slack deep-links
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: GITHUB_WEBHOOK_SECRET
+        sync: false
+    # Uncomment on a paid plan to make SQLite persistent across deploys:
+    # disk:
+    #   name: kt-data
+    #   mountPath: /data
+    #   sizeGB: 1
+
+  - type: web
+    name: kt-intelligence-web
+    runtime: docker
+    rootDir: frontend
+    plan: free

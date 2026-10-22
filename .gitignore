@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+node_modules/
+dist/
+.vite/
+.DS_Store
+
+backend/data/
+*.sqlite
+*.db

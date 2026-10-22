@@ -1,0 +1,61 @@
+# Drop this file into any repo you want KT Intelligence to watch:
+#   .github/workflows/kt-drift.yml
+#
+# On every pull request, it asks your KT Intelligence instance which of
+# the changed files have verified knowledge or open findings attached,
+# then posts the result back as a PR comment. The comment names the
+# affected memory records and findings so a reviewer can decide whether
+# the referenced knowledge is still true after the change.
+#
+# Requirements:
+#   - Your KT Intelligence backend is reachable over HTTPS at KT_API_URL.
+#   - You know the project id in KT Intelligence that corresponds to this repo.
+#     Set it as a repo secret: KT_PROJECT_ID.
+#   - Optional: set KT_API_URL as a repo variable so you can rotate without
+#     editing the workflow.
+
+name: KT Intelligence · knowledge drift
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed files
+        id: diff
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          FILES=$(git diff --name-only "$BASE" "$HEAD" | jq -R -s -c 'split("\n") | map(select(length>0))')
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+
+      - name: Ask KT Intelligence
+        id: kt
+        env:
+          KT_API_URL:    ${{ vars.KT_API_URL }}
+          KT_PROJECT_ID: ${{ secrets.KT_PROJECT_ID }}
+          FILES:         ${{ steps.diff.outputs.files }}
+        run: |
+          RESPONSE=$(curl -s -X POST \
+            "$KT_API_URL/api/projects/$KT_PROJECT_ID/pr-comment" \
+            -H "Content-Type: application/json" \
+            -d "{\"changed_files\": $FILES}")
+          echo "$RESPONSE" | jq -r '.markdown' > kt-comment.md
+          cat kt-comment.md
+
+      - name: Post or update PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: kt-intelligence
+          path: kt-comment.md
